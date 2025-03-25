@@ -1,0 +1,5 @@
+pip>=23.0
+setuptools>=67.0
+beautifulsoup4>=4.12
+requests>=2.31
+urllib3>=2.2
