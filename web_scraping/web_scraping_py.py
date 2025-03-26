@@ -4,13 +4,13 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import zipfile
 
-# URL base do site que será acessado
+# URL base
 BASE_URL = "https://www.gov.br/ans/pt-br/acesso-a-informacao/participacao-da-sociedade/atualizacao-do-rol-de-procedimentos"
 
 # Diretório onde os arquivos baixados serão armazenados
 DOWNLOAD_DIR = "Downloads"
 
-# Dicionário com os nomes dos anexos que desejamos baixar e os nomes que serão dados aos arquivos salvos
+# Dicionário com os nomes dos anexos que serão baixados e seus respectivos nomes
 PDF_NAMES = {
     "Anexo I": "Anexo_I.pdf",
     "Anexo II": "Anexo_II.pdf"
@@ -70,7 +70,7 @@ def extrair_links_pdfs(html, base_url):
         texto_link = link.get_text(strip=True)
         # Itera sobre os nomes dos anexos que buscamos
         for anexo in PDF_NAMES.keys():
-            # Verifica se o texto contém o nome do anexo (essa lógica pode ser ajustada conforme necessário)
+            # Verifica se o texto contém o nome do anexo
             if anexo in texto_link:
                 # Pega o valor do atributo href
                 href = link['href']
@@ -106,8 +106,6 @@ def baixar_pdf(url, caminho_destino):
         print(f"PDF baixado e salvo em: {os.path.abspath(caminho_destino)}")  
     except requests.RequestException as e:
         raise requests.RequestException(f"Erro ao baixar {url}: {e}")
-
-
 
 def compactar_pdfs(diretorio_origem, arquivo_zip):
     """

@@ -27,7 +27,7 @@ def executar_web_scraping():
         raise Exception(f"Erro ao executar o script web_scraping_py.py: {e}")
 
 def verificar_arquivo_pdf():
-    """Verifica se o arquivo Anexo_I.pdf existe e executa o web scraping se necessário."""
+    """Verifica se o arquivo Anexo_I.pdf existe, e executa o web scraping caso não exista."""
     if not os.path.exists(PDF_PATH):
         executar_web_scraping()
     if os.path.exists(PDF_PATH):
@@ -82,8 +82,6 @@ def compactar_csv(csv_path, zip_path):
     except Exception as e:
         raise Exception(f"Erro ao compactar CSV: {e}")
 
-
-
 def substituir_abreviacoes(df):
     """
     Substitui as abreviações OD e AMB pelas descrições completas conforme a legenda.
@@ -105,13 +103,10 @@ def substituir_abreviacoes(df):
         # Renomeando as colunas como foi pedido
         df = df.rename(columns={"OD": "Seg. Odontológica", "AMB": "Seg. Ambulatorial"})
 
-
         print("Abreviações substituídas com sucesso!")
         return df
     except Exception as e:
         raise Exception(f"Erro ao substituir abreviações: {e}")
-
-
 
 def main():
     """Função principal que executa todas as etapas do processo."""

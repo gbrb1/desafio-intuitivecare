@@ -2,7 +2,6 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-import zipfile
 from data_transformation.data_transformation_py import (executar_web_scraping, verificar_arquivo_pdf, 
                                                          extrair_tabela_pdf, salvar_csv, compactar_csv, 
                                                          substituir_abreviacoes, main, WEB_SCRAPING_PATH)
@@ -32,7 +31,7 @@ def test_executar_web_scraping(mock_run):
     # Obtém os argumentos usados na chamada
     args, kwargs = mock_run.call_args
     
-    # Verifica cada componente individualmente:
+    # Verificando cada componente individualmente:
     # 1. Caminho do script
     assert os.path.normpath(args[0][1]) == expected_script
     # 2. Flag check=True
@@ -40,7 +39,7 @@ def test_executar_web_scraping(mock_run):
     # 3. Diretório de trabalho
     assert os.path.normpath(kwargs['cwd']) == expected_cwd
 
-# Testes para a função verificar_arquivo_pdf
+
 def test_arquivo_existente():
     """Testa o cenário onde o arquivo PDF já existe no sistema"""
     
@@ -52,7 +51,7 @@ def test_arquivo_existente():
 def test_arquivo_criado_com_sucesso():
     """Testa o cenário onde o arquivo é criado com sucesso pelo web scraping"""
     
-    # Configura mocks para:
+    # Configurando mocks para:
     # - Verificação de existência do arquivo (False depois True)
     # - Execução do web scraping
     with patch("data_transformation.data_transformation_py.os.path.exists") as mock_exists, \
@@ -63,19 +62,19 @@ def test_arquivo_criado_com_sucesso():
         # 2a chamada: arquivo existe (após scraping)
         mock_exists.side_effect = [False, True]
         
-        # Configura o mock do scraping para retornar None (sucesso)
+        # Configurando o mock do scraping para retornar None (sucesso)
         mock_scraping.return_value = None
         
-        # Verifica se retorna True após criar o arquivo
+        # Verificando se retorna True após criar o arquivo
         assert verificar_arquivo_pdf() is True
         
-        # Verifica se o scraping foi chamado uma vez
+        # Verificando se o scraping foi chamado uma vez
         mock_scraping.assert_called_once()
 
 def test_falha_ao_criar_arquivo():
     """Testa o cenário onde o web scraping falha ao criar o arquivo"""
     
-    # Configura mocks para:
+    # Configurando mocks para:
     # - Arquivo nunca existe
     # - Execução do scraping
     # - Captura de exceção
@@ -83,13 +82,13 @@ def test_falha_ao_criar_arquivo():
          patch("data_transformation.data_transformation_py.executar_web_scraping") as mock_scraping, \
          pytest.raises(Exception, match="não foi encontrado após a execução do script"):
         
-        # Executa a função (deve levantar exceção)
+        # Executando a função (que deve levantar exceção)
         verificar_arquivo_pdf()
         
-        # Verifica se o scraping foi chamado
+        # Verificando se o scraping foi chamado
         mock_scraping.assert_called_once()
 
-# Teste para a função extrair_tabela_pdf
+
 @patch("pdfplumber.open")
 def test_extrair_tabela_pdf(mock_pdf):
     """Testa a extração de tabelas de um PDF"""
@@ -115,15 +114,13 @@ def test_extrair_tabela_pdf(mock_pdf):
     # - Dados corretos
     assert df.iloc[0, 0] == "Row1"
 
-# Teste para a função salvar_csv
+
 @patch("pandas.DataFrame.to_csv")
 def test_salvar_csv(mock_to_csv):
     """Testa o salvamento de DataFrame para CSV"""
     
-    # Cria DataFrame de teste
+    # Criando DataFrame de teste
     df = pd.DataFrame([["Row1", "Value1"]], columns=["Header", "Data"])
-
-    # Executa a função
     salvar_csv(df, "path_to_csv")
     
     # Verifica se to_csv foi chamado com parâmetros corretos:
