@@ -20,11 +20,11 @@ ZIP_PATH = os.path.join(os.getcwd(), "Teste_Gabriel.zip")
 def executar_web_scraping():
     """Executa o script web_scraping.py para baixar o arquivo Anexo_I.pdf caso ele não exista."""
     try:
-        print("O arquivo Anexo_I.pdf não foi encontrado. Executando o script web_scraping.py...")
-        subprocess.run(["python", os.path.join(WEB_SCRAPING_PATH, "web_scraping.py")], check=True, cwd=WEB_SCRAPING_PATH)
+        print("O arquivo Anexo_I.pdf não foi encontrado. Executando o script web_scraping_py.py...")
+        subprocess.run(["python", os.path.join(WEB_SCRAPING_PATH, "web_scraping_py.py")], check=True, cwd=WEB_SCRAPING_PATH)
         print("Script web_scraping.py executado com sucesso!")
     except subprocess.CalledProcessError as e:
-        raise Exception(f"Erro ao executar o script web_scraping.py: {e}")
+        raise Exception(f"Erro ao executar o script web_scraping_py.py: {e}")
 
 def verificar_arquivo_pdf():
     """Verifica se o arquivo Anexo_I.pdf existe e executa o web scraping se necessário."""
@@ -37,22 +37,27 @@ def verificar_arquivo_pdf():
         raise Exception("O arquivo Anexo_I.pdf não foi encontrado após a execução do script.")
 
 def extrair_tabela_pdf(pdf_path):
-    """Extrai tabelas do PDF usando pdfplumber."""
+    """Extrai tabelas do PDF."""
     try:
         print("Extraindo dados do PDF...")
         tabelas = []
         with pdfplumber.open(pdf_path) as pdf:
-            for i in range(2, len(pdf.pages)):
-                page = pdf.pages[i]
+            
+            for page in pdf.pages:  
                 table = page.extract_table()
                 if table:
                     tabelas.extend(table)
         
+        if not tabelas:
+            return pd.DataFrame()  
+
         # Convertendo para DataFrame
         df = pd.DataFrame(tabelas)
-        df.columns = df.iloc[0]  # Define a primeira linha como cabeçalho
-        df = df[1:].reset_index(drop=True)  # Remove a primeira linha duplicada
         
+        if len(df) > 0:
+            df.columns = df.iloc[0]  # Define a primeira linha como cabeçalho
+            df = df[1:].reset_index(drop=True)  # Remove a primeira linha
+            
         print("Dados extraídos com sucesso!")
         return df
     except Exception as e:
