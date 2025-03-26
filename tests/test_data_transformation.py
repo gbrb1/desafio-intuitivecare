@@ -1,185 +1,189 @@
+import unittest
+from unittest.mock import patch, MagicMock, call
 import os
-import pytest
-from unittest.mock import patch, MagicMock
+import zipfile
 import pandas as pd
-from data_transformation.data_transformation_py import (executar_web_scraping, verificar_arquivo_pdf, 
-                                                         extrair_tabela_pdf, salvar_csv, compactar_csv, 
-                                                         substituir_abreviacoes, main, WEB_SCRAPING_PATH)
+import subprocess
+import pdfplumber
 
-# Teste para a função executar_web_scraping
+# Importando todas as funções a serem testadas
+from data_transformation.data_transformation_py import (
+    executar_web_scraping,
+    extrair_pdf_do_zip,
+    excluir_arquivos_temporarios,
+    excluir_arquivo_zip,
+    substituir_abreviacoes,
+    extrair_tabela_pdf,
+    salvar_csv,
+    compactar_csv,
+    ZIP_PATH, PDF_PATH, CSV_PATH, ZIP_CSV_PATH, WEB_SCRAPING_PATH
+)
+
+## 1. Testes para executar_web_scraping
 @patch("subprocess.run")
-def test_executar_web_scraping(mock_run):
-    """Testa a execução do web scraping verificando os parâmetros usados na chamada do subprocess.run"""
+def test_executar_web_scraping_success(mock_run):
+    """Testa execução bem-sucedida do web scraping"""
+    mock_run.return_value = MagicMock(returncode=0)
     
-    # Configura o mock para retornar None (simulando execução bem-sucedida)
-    mock_run.return_value = None
-    
-    # Executa a função que está sendo testada
-    executar_web_scraping()
-    
-    # Prepara os caminhos esperados normalizados (para compatibilidade entre sistemas)
-    expected_script = os.path.normpath(os.path.join(WEB_SCRAPING_PATH, "web_scraping_py.py"))
-    expected_cwd = os.path.normpath(WEB_SCRAPING_PATH)
-    
-    # Debug: mostra os caminhos que estão sendo comparados
-    print(f"Script esperado: {expected_script}")
-    print(f"Diretório esperado: {expected_cwd}")
-    
-    # Verifica se o subprocess.run foi chamado exatamente uma vez
-    mock_run.assert_called_once()
-    
-    # Obtém os argumentos usados na chamada
-    args, kwargs = mock_run.call_args
-    
-    # Verificando cada componente individualmente:
-    # 1. Caminho do script
-    assert os.path.normpath(args[0][1]) == expected_script
-    # 2. Flag check=True
-    assert kwargs['check'] is True
-    # 3. Diretório de trabalho
-    assert os.path.normpath(kwargs['cwd']) == expected_cwd
+    try:
+        executar_web_scraping()
+        mock_run.assert_called_once_with(
+            ["python", os.path.join(WEB_SCRAPING_PATH, "web_scraping_py.py")],
+            check=True,
+            cwd=WEB_SCRAPING_PATH
+        )
+    except Exception as e:
+        assert False, f"Falha inesperada: {e}"
 
-
-def test_arquivo_existente():
-    """Testa o cenário onde o arquivo PDF já existe no sistema"""
+@patch("subprocess.run")
+def test_executar_web_scraping_failure(mock_run):
+    """Testa falha na execução do web scraping"""
+    mock_run.side_effect = subprocess.CalledProcessError(1, 'cmd')
     
-    # Configura o mock para simular que o arquivo existe
-    with patch("data_transformation.data_transformation_py.os.path.exists", return_value=True):
-        # Verifica se a função retorna True quando o arquivo existe
-        assert verificar_arquivo_pdf() is True
-
-def test_arquivo_criado_com_sucesso():
-    """Testa o cenário onde o arquivo é criado com sucesso pelo web scraping"""
+    with unittest.TestCase().assertRaises(Exception) as context:
+        executar_web_scraping()
     
-    # Configurando mocks para:
-    # - Verificação de existência do arquivo (False depois True)
-    # - Execução do web scraping
-    with patch("data_transformation.data_transformation_py.os.path.exists") as mock_exists, \
-         patch("data_transformation.data_transformation_py.executar_web_scraping") as mock_scraping:
-        
-        # Simula:
-        # 1a chamada: arquivo não existe
-        # 2a chamada: arquivo existe (após scraping)
-        mock_exists.side_effect = [False, True]
-        
-        # Configurando o mock do scraping para retornar None (sucesso)
-        mock_scraping.return_value = None
-        
-        # Verificando se retorna True após criar o arquivo
-        assert verificar_arquivo_pdf() is True
-        
-        # Verificando se o scraping foi chamado uma vez
-        mock_scraping.assert_called_once()
+    assert "Erro ao executar o script web_scraping_py.py" in str(context.exception)
 
-def test_falha_ao_criar_arquivo():
-    """Testa o cenário onde o web scraping falha ao criar o arquivo"""
-    
-    # Configurando mocks para:
-    # - Arquivo nunca existe
-    # - Execução do scraping
-    # - Captura de exceção
-    with patch("data_transformation.data_transformation_py.os.path.exists", return_value=False), \
-         patch("data_transformation.data_transformation_py.executar_web_scraping") as mock_scraping, \
-         pytest.raises(Exception, match="não foi encontrado após a execução do script"):
-        
-        # Executando a função (que deve levantar exceção)
-        verificar_arquivo_pdf()
-        
-        # Verificando se o scraping foi chamado
-        mock_scraping.assert_called_once()
-
-
-@patch("pdfplumber.open")
-def test_extrair_tabela_pdf(mock_pdf):
-    """Testa a extração de tabelas de um PDF"""
-    
-    # Configura mock do PDF com:
-    # - 1 página
-    # - Tabela simulada com cabeçalhos e dados
-    mock_pdf.return_value.__enter__.return_value.pages = [MagicMock()]
-    mock_page = MagicMock()
-    mock_page.extract_table.return_value = [["Header", "Data"], ["Row1", "Value1"]]
-    mock_pdf.return_value.__enter__.return_value.pages[0] = mock_page
-
-    # Executa a extração
-    df = extrair_tabela_pdf("path_to_pdf")
-    
-    # Verificações:
-    # - Retorno é DataFrame
-    assert isinstance(df, pd.DataFrame)
-    # - Formato correto (1 linha, 2 colunas)
-    assert df.shape == (1, 2)
-    # - Cabeçalhos corretos
-    assert df.columns[0] == "Header"
-    # - Dados corretos
-    assert df.iloc[0, 0] == "Row1"
-
-
-@patch("pandas.DataFrame.to_csv")
-def test_salvar_csv(mock_to_csv):
-    """Testa o salvamento de DataFrame para CSV"""
-    
-    # Criando DataFrame de teste
-    df = pd.DataFrame([["Row1", "Value1"]], columns=["Header", "Data"])
-    salvar_csv(df, "path_to_csv")
-    
-    # Verifica se to_csv foi chamado com parâmetros corretos:
-    # - Caminho do arquivo
-    # - Sem índice
-    # - Codificação utf-8-sig
-    mock_to_csv.assert_called_once_with("path_to_csv", index=False, encoding='utf-8-sig')
-
-# Teste para a função compactar_csv
+## 2. Testes para extrair_pdf_do_zip
 @patch("zipfile.ZipFile")
-def test_compactar_csv(mock_zipfile):
-    """Testa a compactação do arquivo CSV para ZIP"""
+def test_extrair_pdf_do_zip_success(mock_zip):
+    """Testa extração bem-sucedida do PDF"""
+    # Configuração do mock
+    mock_instance = MagicMock()
+    mock_instance.namelist.return_value = ["Anexo_I.pdf"]
+    mock_zip.return_value.__enter__.return_value = mock_instance
     
-    # Configura mock do ZipFile
-    mock_zip = MagicMock()
-    mock_zipfile.return_value.__enter__.return_value = mock_zip
+    # Execução
+    extrair_pdf_do_zip(ZIP_PATH, PDF_PATH)
     
-    # Executa a compactação
-    compactar_csv("path_to_csv", "path_to_zip")
-    
-    # Verifica se o arquivo foi adicionado ao ZIP
-    mock_zip.write.assert_called_once_with("path_to_csv", os.path.basename("path_to_csv"))
+    # Verificação
+    mock_instance.extract.assert_called_once_with("Anexo_I.pdf", WEB_SCRAPING_PATH)
 
-# Teste para a função substituir_abreviacoes
+@patch("zipfile.ZipFile")
+def test_extrair_pdf_do_zip_file_not_found(mock_zip):
+    """Testa quando o PDF não está no arquivo ZIP"""
+    mock_instance = MagicMock()
+    mock_instance.namelist.return_value = ["outro_arquivo.txt"]
+    mock_zip.return_value.__enter__.return_value = mock_instance
+    
+    with unittest.TestCase().assertRaises(Exception) as context:
+        extrair_pdf_do_zip(ZIP_PATH, PDF_PATH)
+    
+    assert "O arquivo Anexo_I.pdf não foi encontrado" in str(context.exception)
+
+## 3. Testes para excluir_arquivos_temporarios
+@patch("os.remove")
+@patch("os.path.exists", side_effect=lambda x: True)
+def test_excluir_arquivos_temporarios(mock_exists, mock_remove):
+    """Testa exclusão dos arquivos temporários"""
+    excluir_arquivos_temporarios()
+    
+    # Verifica se removeu ambos arquivos
+    expected_calls = [call(PDF_PATH), call(CSV_PATH)]
+    mock_remove.assert_has_calls(expected_calls, any_order=True)
+
+@patch("os.remove")
+@patch("os.path.exists", side_effect=lambda x: False)
+def test_excluir_arquivos_temporarios_not_exists(mock_exists, mock_remove):
+    """Testa quando os arquivos não existem"""
+    excluir_arquivos_temporarios()
+    mock_remove.assert_not_called()
+
+## 4. Testes para excluir_arquivo_zip
+@patch("os.remove")
+@patch("os.path.exists", return_value=True)
+def test_excluir_arquivo_zip(mock_exists, mock_remove):
+    """Testa exclusão do arquivo ZIP"""
+    excluir_arquivo_zip()
+    mock_remove.assert_called_once_with(ZIP_PATH)
+
+## 5. Testes para substituir_abreviacoes
 def test_substituir_abreviacoes():
-    """Testa a substituição de abreviações nos nomes das colunas"""
+    """Testa substituição das abreviações"""
+    df = pd.DataFrame({
+        "OD": [1, 2],
+        "AMB": [3, 4],
+        "Outra": [5, 6]
+    })
     
-    # Cria DataFrame com colunas abreviadas
-    df = pd.DataFrame({"OD": ["A", "B"], "AMB": ["C", "D"]})
+    result = substituir_abreviacoes(df)
     
-    # Executa a substituição
-    df_modificado = substituir_abreviacoes(df)
-    
-    # Verificações:
-    # - Colunas renomeadas corretamente
-    assert "Seg. Odontológica" in df_modificado.columns
-    assert "Seg. Ambulatorial" in df_modificado.columns
-    # - Colunas antigas removidas
-    assert "OD" not in df_modificado.columns
-    assert "AMB" not in df_modificado.columns
+    assert "Seg. Odontológica" in result.columns
+    assert "Seg. Ambulatorial" in result.columns
+    assert "Outra" in result.columns
+    assert "OD" not in result.columns
+    assert "AMB" not in result.columns
 
-# Teste para a função main
-@patch("data_transformation.data_transformation_py.verificar_arquivo_pdf")
-@patch("data_transformation.data_transformation_py.extrair_tabela_pdf")
-@patch("data_transformation.data_transformation_py.substituir_abreviacoes")
-@patch("data_transformation.data_transformation_py.salvar_csv")
-@patch("data_transformation.data_transformation_py.compactar_csv")
-def test_main(mock_compactar_csv, mock_salvar_csv, mock_substituir_abreviacoes, 
-             mock_extrair_tabela_pdf, mock_verificar_arquivo_pdf):
-    """Testa o fluxo principal da aplicação"""
+## 6. Testes para extrair_tabela_pdf
+@patch("pdfplumber.open")
+def test_extrair_tabela_pdf_success(mock_pdf):
+    """Testa extração bem-sucedida da tabela"""
+    # Configuração do mock
+    mock_instance = MagicMock()
+    mock_page = MagicMock()
+    mock_page.extract_table.return_value = [
+        ["Código", "Descrição", "OD", "AMB"],
+        ["123", "Exemplo", "1", "0"]
+    ]
+    mock_instance.pages = [mock_page]
+    mock_pdf.return_value.__enter__.return_value = mock_instance
     
-    # Configura mocks para todas as funções chamadas pela main
-    mock_verificar_arquivo_pdf.return_value = True
-    mock_extrair_tabela_pdf.return_value = pd.DataFrame([["Header", "Data"]])
-    mock_substituir_abreviacoes.return_value = pd.DataFrame([["Row1", "Value1"]])
-    
-    # Executa a main verificando a saída impressa
-    with patch("builtins.print") as mock_print:
-        main()
+    # Mock da substituição de abreviações
+    with patch('data_transformation.data_transformation_py.substituir_abreviacoes') as mock_sub:
+        mock_sub.return_value = pd.DataFrame({
+            "Código": ["123"],
+            "Descrição": ["Exemplo"],
+            "Seg. Odontológica": ["1"],
+            "Seg. Ambulatorial": ["0"]
+        })
         
-        # Verifica se a mensagem final foi impressa
-        mock_print.assert_any_call("Processo concluído com sucesso!")
+        result = extrair_tabela_pdf(PDF_PATH)
+        
+        assert not result.empty
+        mock_sub.assert_called_once()
+
+## 7. Testes para salvar_csv
+@patch("pandas.DataFrame.to_csv")
+def test_salvar_csv_success(mock_to_csv):
+    """Testa salvamento do CSV"""
+    df = pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+    
+    salvar_csv(df, CSV_PATH)
+    
+    mock_to_csv.assert_called_once_with(
+        CSV_PATH,
+        index=False,
+        encoding='utf-8-sig'
+    )
+
+## 8. Testes para compactar_csv
+@patch("zipfile.ZipFile")
+@patch("os.path.exists", return_value=True)
+def test_compactar_csv_success(mock_exists, mock_zip):
+    """Testa compactação bem-sucedida"""
+    mock_instance = MagicMock()
+    mock_zip.return_value.__enter__.return_value = mock_instance
+    
+    compactar_csv(CSV_PATH, ZIP_CSV_PATH)
+    
+    mock_instance.write.assert_called_once_with(
+        CSV_PATH,
+        os.path.basename(CSV_PATH)
+    )
+
+@patch("zipfile.ZipFile")
+@patch("os.path.exists", return_value=False)
+def test_compactar_csv_file_not_found(mock_exists, mock_zip):
+    """Testa quando o arquivo não existe"""
+    with unittest.TestCase().assertRaises(Exception) as context:
+        compactar_csv(CSV_PATH, ZIP_CSV_PATH)
+    
+    # Verifica se a mensagem de erro contém o texto esperado
+    assert "Arquivo CSV não encontrado" in str(context.exception)
+    
+    # Garante que o ZipFile não foi chamado
+    mock_zip.assert_not_called()
+
+if __name__ == "__main__":
+    unittest.main()
