@@ -8,7 +8,7 @@ import zipfile
 BASE_URL = "https://www.gov.br/ans/pt-br/acesso-a-informacao/participacao-da-sociedade/atualizacao-do-rol-de-procedimentos"
 
 # Diretório onde os arquivos baixados serão armazenados
-DOWNLOAD_DIR = "downloads"
+DOWNLOAD_DIR = "Downloads"
 
 # Dicionário com os nomes dos anexos que desejamos baixar e os nomes que serão dados aos arquivos salvos
 PDF_NAMES = {
@@ -103,9 +103,10 @@ def baixar_pdf(url, caminho_destino):
             for chunk in resposta.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-        print(f"PDF baixado e salvo em: {caminho_destino}")
+        print(f"PDF baixado e salvo em: {os.path.abspath(caminho_destino)}")  
     except requests.RequestException as e:
         raise requests.RequestException(f"Erro ao baixar {url}: {e}")
+
 
 
 def compactar_pdfs(diretorio_origem, arquivo_zip):
@@ -125,7 +126,8 @@ def compactar_pdfs(diretorio_origem, arquivo_zip):
                     # arcname define como o arquivo será nomeado dentro do ZIP
                     zipf.write(caminho_completo, arcname=file)
                     print(f"Arquivo {file} adicionado ao ZIP.")
-    print(f"Compactação concluída. Arquivo ZIP criado: {arquivo_zip}")
+    print(f"Compactação concluída. Arquivo ZIP criado: {os.path.abspath(arquivo_zip)}") 
+
 
 def main():
     """
@@ -159,7 +161,7 @@ def main():
         baixar_pdf(url_pdf, caminho_destino)
     
     # Passo 5: Compactar os PDFs baixados em um único arquivo ZIP
-    arquivo_zip = "anexos.zip"
+    arquivo_zip = "Anexos.zip"
     compactar_pdfs(DOWNLOAD_DIR, arquivo_zip)
 
 if __name__ == "__main__":
